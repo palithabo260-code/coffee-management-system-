@@ -108,21 +108,13 @@ function CartPage({ cart, setCart, placeOrder, busy }) {
 }
 
 function Confirmation({ order, onBack }) {
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      onBack();
-    }, 5000); // Automatically returns to menu after 5 seconds
-
-    return () => clearTimeout(timer);
-  }, [onBack]);
-
   if (!order) return null;
   return (
     <section className="page-section confirmation">
       <div className="confirmation-icon">✓</div>
       <span className="eyebrow">ORDER RECEIVED</span>
       <h1>Thanks for choosing <em>Aroma.</em></h1>
-      <p>Your order has been saved. We'll get it ready for you. Returning to menu shortly...</p>
+      <p>Your order has been saved. We'll get it ready for you.</p>
       <div className="receipt">
         <span>YOUR ORDER NUMBER</span>
         <strong className="order-number">{order.orderNumber || order.id}</strong>
@@ -138,7 +130,7 @@ function Confirmation({ order, onBack }) {
         </div>
         <div className="receipt-status">Status: <strong>{order.status}</strong></div>
       </div>
-      <button className="button button-dark" onClick={onBack}>Back to menu now</button>
+      <button className="button button-dark" onClick={onBack}>Back to menu</button>
     </section>
   );
 }
