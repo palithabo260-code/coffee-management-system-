@@ -95,6 +95,28 @@ app.post("/api/auth/login", async (req, res) => {
   res.status(401).json({ error: "Invalid credentials" });
 });
 
+// Order submission route added here to fix 404
+app.post("/api/orders", async (req, res) => {
+  try {
+    const { customerName, items, total } = req.body;
+    const orderId = crypto.randomUUID();
+    const order = {
+      id: orderId,
+      customerName,
+      items,
+      total,
+      status: "Pending",
+      createdAt: new Date().toISOString()
+    };
+
+    await redisClient.hSet("orders", orderId, JSON.stringify(order));
+    res.status(201).json({ message: "Order placed successfully", order });
+  } catch (error) {
+    console.error("Failed to save order:", error);
+    res.status(500).json({ error: "Failed to place order" });
+  }
+});
+
 async function start() {
   try {
     await redisClient.connect();
