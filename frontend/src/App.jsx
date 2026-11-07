@@ -43,7 +43,6 @@ function MenuPage({ menu, addToCart, loading, error, retry }) {
       <section id="menu-list" className="menu-section">
         <div className="section-heading">
           <div><span className="eyebrow">MADE FOR YOUR MOMENT</span><h2>Our <em>menu</em></h2></div>
-
         </div>
         <div className="category-tabs">
           {categories.map((name) => <button key={name} className={category === name ? "selected" : ""} onClick={() => setCategory(name)}>{name}</button>)}
@@ -109,17 +108,39 @@ function CartPage({ cart, setCart, placeOrder, busy }) {
 }
 
 function Confirmation({ order, onBack }) {
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      onBack();
+    }, 5000); // Automatically returns to menu after 5 seconds
+
+    return () => clearTimeout(timer);
+  }, [onBack]);
+
   if (!order) return null;
-  return <section className="page-section confirmation">
-    <div className="confirmation-icon">✓</div><span className="eyebrow">ORDER RECEIVED</span>
-    <h1>Thanks for choosing <em>Aroma.</em></h1><p>Your order has been saved. We'll get it ready for you.</p>
-    <div className="receipt"><span>YOUR ORDER NUMBER</span><strong className="order-number">{order.id}</strong>
-      {order.items.map((item) => <div className="receipt-line" key={item.id}><span>{item.quantity} × {item.name}</span><strong>{money(item.subtotal)}</strong></div>)}
-      <div className="receipt-line receipt-total"><span>Total</span><strong>{money(order.total)}</strong></div>
-      <div className="receipt-status">Status: <strong>{order.status}</strong></div>
-    </div>
-    <button className="button button-dark" onClick={onBack}>Back to menu</button>
-  </section>;
+  return (
+    <section className="page-section confirmation">
+      <div className="confirmation-icon">✓</div>
+      <span className="eyebrow">ORDER RECEIVED</span>
+      <h1>Thanks for choosing <em>Aroma.</em></h1>
+      <p>Your order has been saved. We'll get it ready for you. Returning to menu shortly...</p>
+      <div className="receipt">
+        <span>YOUR ORDER NUMBER</span>
+        <strong className="order-number">{order.orderNumber || order.id}</strong>
+        {order.items?.map((item) => (
+          <div className="receipt-line" key={item.id}>
+            <span>{item.quantity} × {item.name}</span>
+            <strong>{money(item.subtotal)}</strong>
+          </div>
+        ))}
+        <div className="receipt-line receipt-total">
+          <span>Total</span>
+          <strong>{money(order.total)}</strong>
+        </div>
+        <div className="receipt-status">Status: <strong>{order.status}</strong></div>
+      </div>
+      <button className="button button-dark" onClick={onBack}>Back to menu now</button>
+    </section>
+  );
 }
 
 function StaffPage({ token, setToken, menu, reloadMenu, orders, reloadOrders, summary, reloadSummary }) {
@@ -201,7 +222,7 @@ function StaffPage({ token, setToken, menu, reloadMenu, orders, reloadOrders, su
         <div className="panel-heading"><h2>Customer orders</h2><button className="mini-button" onClick={async () => { await reloadOrders(); await reloadSummary(); }}>Refresh</button></div>
         {orders.length === 0 && <p className="small-note">No orders yet. Customer orders will appear here.</p>}
         <div className="orders-list">{orders.map((order) => <article className="order-card" key={order.id}>
-          <div className="order-card-head"><div><strong>{order.id}</strong><span>{new Date(order.createdAt).toLocaleString()}</span></div><strong>{money(order.total)}</strong></div>
+          <div className="order-card-head"><div><strong>{order.orderNumber || order.id}</strong><span>{new Date(order.createdAt).toLocaleString()}</span></div><strong>{money(order.total)}</strong></div>
           <p className="customer-name">{order.customerName}</p>
           <ul>{order.items.map((item) => <li key={item.id}>{item.quantity} × {item.name} <span>{money(item.subtotal)}</span></li>)}</ul>
           <label className="status-label">Status
@@ -261,12 +282,17 @@ export default function App() {
   async function placeOrder(customerName) {
     setBusyOrder(true);
     try {
-      const order = await apiRequest("/api/orders", {
+      const response = await apiRequest("/api/orders", {
         method: "POST",
         body: JSON.stringify({ customerName, items: cart.map((item) => ({ id: item.id, quantity: item.quantity })) })
       });
-      setConfirmation(order); setCart([]); setPage("confirmation");
-    } finally { setBusyOrder(false); }
+      const orderData = response.order || response;
+      setConfirmation(orderData); 
+      setCart([]); 
+      setPage("confirmation");
+    } finally { 
+      setBusyOrder(false); 
+    }
   }
 
   return <div className="app-shell">
@@ -274,7 +300,7 @@ export default function App() {
     <main>
       {page === "menu" && <MenuPage menu={menu} addToCart={addToCart} loading={loadingMenu} error={menuError} retry={reloadMenu} />}
       {page === "cart" && <CartPage cart={cart} setCart={setCart} placeOrder={placeOrder} busy={busyOrder} />}
-      {page === "confirmation" && <Confirmation order={confirmation} onBack={() => setPage("menu")} />}
+      {page === "confirmation" && <Confirmation order={confirmation} onBack={() => { setConfirmation(null); setPage("menu"); }} />}
       {page === "staff" && <StaffPage token={token} setToken={setToken} menu={menu} reloadMenu={reloadMenu} orders={orders} reloadOrders={reloadOrders} summary={summary} reloadSummary={reloadSummary} />}
     </main>
     <footer><div className="footer-brand">Aroma <em>Coffee</em></div><p>Fresh brews, sweet treats, better days.</p></footer>
