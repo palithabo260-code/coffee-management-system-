@@ -38,35 +38,36 @@ const redisClient = createClient({
 redisClient.on("error", (err) => console.error("Redis Client Error", err));
 
 async function initialiseDatabase() {
-  const existingMenu = await redisClient.exists("menu:items");
+  // Using menu:items:v2 to force seed all 20 new items into Redis
+  const existingMenu = await redisClient.exists("menu:items:v2");
   if (!existingMenu) {
-    
     const defaultMenu = [
-    { name: "Espresso", description: "Bold and rich", category: "Coffee", price: 30 },
-    { name: "Americano", description: "Smooth and balanced", category: "Coffee", price: 35 },
-    { name: "Cappuccino", description: "Espresso, steamed milk, foam", category: "Coffee", price: 40 },
-    { name: "Latte", description: "Espresso and steamed milk", category: "Coffee", price: 45 },
-    { name: "Mocha", description: "Espresso, chocolate, steamed milk", category: "Coffee", price: 50 },
-    { name: "Caramel Macchiato", description: "Espresso, vanilla, caramel, milk", category: "Coffee", price: 55 },
-    { name: "English Breakfast Tea", description: "Classic and refreshing", category: "Tea", price: 30 },
-    { name: "Green Tea", description: "Light and soothing", category: "Tea", price: 30 },
-    { name: "Chai Latte", description: "Spiced and comforting", category: "Tea", price: 45 },
-    { name: "Iced Tea", description: "Cool and crisp", category: "Tea", price: 35 },
-    { name: "Croissant", description: "Buttery and flaky", category: "Pastries", price: 35 },
-    { name: "Chocolate Croissant", description: "Filled with rich chocolate", category: "Pastries", price: 40 },
-    { name: "Blueberry Muffin", description: "Fresh and fruity", category: "Pastries", price: 35 },
-    { name: "Cinnamon Roll", description: "Warm and sweet", category: "Pastries", price: 45 },
-    { name: "Banana Bread", description: "Moist and delicious", category: "Pastries", price: 30 },
-    { name: "Extra Shot", description: "Add an extra espresso shot", category: "Extras", price: 10 },
-    { name: "Oat Milk", description: "Milk alternative", category: "Extras", price: 15 },
-    { name: "Almond Milk", description: "Milk alternative", category: "Extras", price: 15 },
-    { name: "Whipped Cream", description: "Creamy topping", category: "Extras", price: 5 },
-    { name: "Flavoured Syrup", description: "Vanilla, caramel or hazelnut", category: "Extras", price: 5 }
-  ];
+      { id: "1", name: "Espresso", description: "Bold and rich", category: "Coffee", price: 30 },
+      { id: "2", name: "Americano", description: "Smooth and balanced", category: "Coffee", price: 35 },
+      { id: "3", name: "Cappuccino", description: "Espresso, steamed milk, foam", category: "Coffee", price: 40 },
+      { id: "4", name: "Latte", description: "Espresso and steamed milk", category: "Coffee", price: 45 },
+      { id: "5", name: "Mocha", description: "Espresso, chocolate, steamed milk", category: "Coffee", price: 50 },
+      { id: "6", name: "Caramel Macchiato", description: "Espresso, vanilla, caramel, milk", category: "Coffee", price: 55 },
+      { id: "7", name: "English Breakfast Tea", description: "Classic and refreshing", category: "Tea", price: 30 },
+      { id: "8", name: "Green Tea", description: "Light and soothing", category: "Tea", price: 30 },
+      { id: "9", name: "Chai Latte", description: "Spiced and comforting", category: "Tea", price: 45 },
+      { id: "10", name: "Iced Tea", description: "Cool and crisp", category: "Tea", price: 35 },
+      { id: "11", name: "Croissant", description: "Buttery and flaky", category: "Pastries", price: 35 },
+      { id: "12", name: "Chocolate Croissant", description: "Filled with rich chocolate", category: "Pastries", price: 40 },
+      { id: "13", name: "Blueberry Muffin", description: "Fresh and fruity", category: "Pastries", price: 35 },
+      { id: "14", name: "Cinnamon Roll", description: "Warm and sweet", category: "Pastries", price: 45 },
+      { id: "15", name: "Banana Bread", description: "Moist and delicious", category: "Pastries", price: 30 },
+      { id: "16", name: "Extra Shot", description: "Add an extra espresso shot", category: "Extras", price: 10 },
+      { id: "17", name: "Oat Milk", description: "Milk alternative", category: "Extras", price: 15 },
+      { id: "18", name: "Almond Milk", description: "Milk alternative", category: "Extras", price: 15 },
+      { id: "19", name: "Whipped Cream", description: "Creamy topping", category: "Extras", price: 5 },
+      { id: "20", name: "Flavoured Syrup", description: "Vanilla, caramel or hazelnut", category: "Extras", price: 5 }
+    ];
+
     for (const item of defaultMenu) {
-      await redisClient.hSet("menu:items", item.id, JSON.stringify(item));
+      await redisClient.hSet("menu:items:v2", item.id, JSON.stringify(item));
     }
-    console.log("Initialized default menu items in Redis.");
+    console.log("Initialized 20 default menu items under menu:items:v2 in Redis.");
   }
 }
 
@@ -77,7 +78,7 @@ app.get("/api/health", (req, res) => {
 
 app.get("/api/menu", async (req, res) => {
   try {
-    const items = await redisClient.hGetAll("menu:items");
+    const items = await redisClient.hGetAll("menu:items:v2");
     const menuList = Object.values(items).map(item => JSON.parse(item));
     res.json(menuList);
   } catch (error) {
