@@ -95,7 +95,7 @@ app.post("/api/auth/login", async (req, res) => {
   res.status(401).json({ error: "Invalid credentials" });
 });
 
-// Order submission route updated with orderNumber
+// Bulletproof order submission route returning all possible identifier keys
 app.post("/api/orders", async (req, res) => {
   try {
     const { customerName, items, total } = req.body;
@@ -104,7 +104,8 @@ app.post("/api/orders", async (req, res) => {
     
     const order = {
       id: orderId,
-      orderNumber,
+      orderId: orderId,
+      orderNumber: orderNumber,
       customerName,
       items,
       total,
@@ -113,7 +114,14 @@ app.post("/api/orders", async (req, res) => {
     };
 
     await redisClient.hSet("orders", orderId, JSON.stringify(order));
-    res.status(201).json({ message: "Order placed successfully", orderNumber, order });
+    
+    res.status(201).json({ 
+      message: "Order placed successfully", 
+      id: orderId,
+      orderId: orderId,
+      orderNumber: orderNumber, 
+      order 
+    });
   } catch (error) {
     console.error("Failed to save order:", error);
     res.status(500).json({ error: "Failed to place order" });
