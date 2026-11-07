@@ -23,7 +23,9 @@ function Header({ page, setPage, cartCount }) {
 
 function MenuPage({ menu, addToCart, loading, error, retry }) {
   const [category, setCategory] = useState("All");
+  const [showMenuSection, setShowMenuSection] = useState(false);
   const shown = category === "All" ? menu : menu.filter((item) => item.category === category);
+  
   return (
     <>
       <section className="hero">
@@ -31,7 +33,17 @@ function MenuPage({ menu, addToCart, loading, error, retry }) {
           <span className="eyebrow">FRESH BREWS · WARM MOMENTS</span>
           <h1>Good coffee.<br /><em>Better days.</em></h1>
           <p>Your favourite cup and a little something sweet, made with care.</p>
-          <button className="button button-gold" onClick={() => document.getElementById("menu-list")?.scrollIntoView({ behavior: "smooth" })}>Explore the menu ↓</button>
+          <button 
+            className="button button-gold" 
+            onClick={() => {
+              setShowMenuSection(true);
+              setTimeout(() => {
+                document.getElementById("menu-list")?.scrollIntoView({ behavior: "smooth" });
+              }, 50);
+            }}
+          >
+            Explore the menu ↓
+          </button>
         </div>
         <div className="hero-art" aria-label="Coffee cup illustration" role="img">
           <div className="sun-shape"></div><div className="coffee-cup">☕</div>
@@ -40,27 +52,29 @@ function MenuPage({ menu, addToCart, loading, error, retry }) {
         </div>
       </section>
 
-      <section id="menu-list" className="menu-section">
-        <div className="section-heading">
-          <div><span className="eyebrow">MADE FOR YOUR MOMENT</span><h2>Our <em>menu</em></h2></div>
-        </div>
-        <div className="category-tabs">
-          {categories.map((name) => <button key={name} className={category === name ? "selected" : ""} onClick={() => setCategory(name)}>{name}</button>)}
-        </div>
-        {loading && <p className="notice">Brewing up the menu…</p>}
-        {error && <div className="error-box">{error} <button onClick={retry}>Try again</button></div>}
-        {!loading && !error && shown.length === 0 && <p className="notice">No products in this category yet.</p>}
-        <div className="menu-grid">
-          {shown.map((item) => (
-            <article className={`menu-card ${!item.available ? "unavailable" : ""}`} key={item.id}>
-              <div className={`product-icon icon-${item.category.toLowerCase()}`}>{item.category === "Coffee" ? "☕" : item.category === "Tea" ? "🍵" : item.category === "Pastries" ? "🥐" : "✨"}</div>
-              <div className="product-top"><span className="product-category">{item.category}</span><span className="price-circle">{money(item.price)}</span></div>
-              <h3>{item.name}</h3><p>{item.description}</p>
-              <button className="button button-dark full-width" disabled={!item.available} onClick={() => addToCart(item)}>{item.available ? "Add to cart +" : "Currently unavailable"}</button>
-            </article>
-          ))}
-        </div>
-      </section>
+      {showMenuSection && (
+        <section id="menu-list" className="menu-section">
+          <div className="section-heading">
+            <div><span className="eyebrow">MADE FOR YOUR MOMENT</span><h2>Our <em>menu</em></h2></div>
+          </div>
+          <div className="category-tabs">
+            {categories.map((name) => <button key={name} className={category === name ? "selected" : ""} onClick={() => setCategory(name)}>{name}</button>)}
+          </div>
+          {loading && <p className="notice">Brewing up the menu…</p>}
+          {error && <div className="error-box">{error} <button onClick={retry}>Try again</button></div>}
+          {!loading && !error && shown.length === 0 && <p className="notice">No products in this category yet.</p>}
+          <div className="menu-grid">
+            {shown.map((item) => (
+              <article className={`menu-card ${!item.available ? "unavailable" : ""}`} key={item.id}>
+                <div className={`product-icon icon-${item.category.toLowerCase()}`}>{item.category === "Coffee" ? "☕" : item.category === "Tea" ? "🍵" : item.category === "Pastries" ? "🥐" : "✨"}</div>
+                <div className="product-top"><span className="product-category">{item.category}</span><span className="price-circle">{money(item.price)}</span></div>
+                <h3>{item.name}</h3><p>{item.description}</p>
+                <button className="button button-dark full-width" disabled={!item.available} onClick={() => addToCart(item)}>{item.available ? "Add to cart +" : "Currently unavailable"}</button>
+              </article>
+            ))}
+          </div>
+        </section>
+      )}
     </>
   );
 }
