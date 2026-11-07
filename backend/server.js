@@ -38,7 +38,6 @@ const redisClient = createClient({
 redisClient.on("error", (err) => console.error("Redis Client Error", err));
 
 async function initialiseDatabase() {
-  // Using menu:items:v3 to force seed all 20 items with availability into Redis
   const existingMenu = await redisClient.exists("menu:items:v3");
   if (!existingMenu) {
     const defaultMenu = [
@@ -71,6 +70,19 @@ async function initialiseDatabase() {
   }
 }
 
+// Middleware to verify JWT token for staff routes
+function authenticateToken(req, res, next) {
+  const authHeader = req.headers["authorization"];
+  const token = authHeader && authHeader.split(" ")[1];
+  if (!token) return res.status(401).json({ error: "Access token required" });
+
+  jwt.verify(token, JWT_SECRET, (err, user) => {
+    if (err) return res.status(403).json({ error: "Invalid or expired token" });
+    req.user = user;
+    next();
+  });
+}
+
 // Routes
 app.get("/api/health", (req, res) => {
   res.json({ status: "OK", timestamp: new Date().toISOString() });
@@ -95,10 +107,42 @@ app.post("/api/auth/login", async (req, res) => {
   res.status(401).json({ error: "Invalid credentials" });
 });
 
-// Bulletproof order submission route returning all possible identifier keys
+// Staff alias login route
+app.post("/api/staff/login", async (req, res) => {
+  const { username, password } = req.body;
+  if (username === STAFF_USERNAME && password === STAFF_PASSWORD) {
+    const token = jwt.sign({ username }, JWT_SECRET, { expiresIn: "8h" });
+    return res.json({ token, user: { username } });
+  }
+  res.status(401).json({ error: "Invalid credentials" });
+});
+
+// Fully populated order submission route
 app.post("/api/orders", async (req, res) => {
   try {
-    const { customerName, items, total } = req.body;
+    const { customerName, items } = req.body;
+    if (!customerName || !items || !items.length) {
+      return res.status(400).json({ error: "Customer name and items are required." });
+    }
+
+    const menuItemsHash = await redisClient.hGetAll("menu:items:v3");
+    let calculatedTotal = 0;
+    
+    const enrichedItems = items.map((cartItem) => {
+      const menuItemJson = menuItemsHash[cartItem.id];
+      const menuItem = menuItemJson ? JSON.parse(menuItemJson) : { name: "Item", price: 0 };
+      const subtotal = menuItem.price * cartItem.quantity;
+      calculatedTotal += subtotal;
+
+      return {
+        id: cartItem.id,
+        name: menuItem.name,
+        price: menuItem.price,
+        quantity: cartItem.quantity,
+        subtotal: subtotal
+      };
+    });
+
     const orderId = crypto.randomUUID();
     const orderNumber = "ORD-" + Math.floor(100000 + Math.random() * 900000);
     
@@ -107,8 +151,8 @@ app.post("/api/orders", async (req, res) => {
       orderId: orderId,
       orderNumber: orderNumber,
       customerName,
-      items,
-      total,
+      items: enrichedItems,
+      total: calculatedTotal,
       status: "Pending",
       createdAt: new Date().toISOString()
     };
@@ -125,6 +169,101 @@ app.post("/api/orders", async (req, res) => {
   } catch (error) {
     console.error("Failed to save order:", error);
     res.status(500).json({ error: "Failed to place order" });
+  }
+});
+
+// Get all orders (Staff)
+app.get("/api/orders", authenticateToken, async (req, res) => {
+  try {
+    const ordersHash = await redisClient.hGetAll("orders");
+    const ordersList = Object.values(ordersHash)
+      .map(o => JSON.parse(o))
+      .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+    res.json(ordersList);
+  } catch (error) {
+    res.status(500).json({ error: "Failed to fetch orders" });
+  }
+});
+
+// Update order status (Staff)
+app.patch("/api/orders/:id/status", authenticateToken, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { status } = req.body;
+    const orderJson = await redisClient.hGet("orders", id);
+    if (!orderJson) return res.status(404).json({ error: "Order not found" });
+
+    const order = JSON.parse(orderJson);
+    order.status = status;
+    await redisClient.hSet("orders", id, JSON.stringify(order));
+    res.json(order);
+  } catch (error) {
+    res.status(500).json({ error: "Failed to update order status" });
+  }
+});
+
+// Staff summary / analytics
+app.get("/api/staff/summary", authenticateToken, async (req, res) => {
+  try {
+    const ordersHash = await redisClient.hGetAll("orders");
+    const orders = Object.values(ordersHash).map(o => JSON.parse(o));
+
+    const today = new Date().toDateString();
+    const todayOrders = orders.filter(o => new Date(o.createdAt).toDateString() === today);
+
+    const orderCount = todayOrders.length;
+    const orderValue = todayOrders.reduce((sum, o) => sum + (o.total || 0), 0);
+    const collectedValue = todayOrders
+      .filter(o => o.status === "Collected")
+      .reduce((sum, o) => sum + (o.total || 0), 0);
+
+    const statusCounts = { Pending: 0, Preparing: 0, Ready: 0, Collected: 0 };
+    todayOrders.forEach(o => {
+      if (statusCounts[o.status] !== undefined) statusCounts[o.status]++;
+    });
+
+    res.json({ orderCount, orderValue, collectedValue, statusCounts });
+  } catch (error) {
+    res.status(500).json({ error: "Failed to fetch summary" });
+  }
+});
+
+// Add menu item (Staff)
+app.post("/api/menu", authenticateToken, async (req, res) => {
+  try {
+    const { name, description, category, price, available } = req.body;
+    const id = crypto.randomUUID();
+    const newItem = { id, name, description, category, price: Number(price), available: Boolean(available) };
+    
+    await redisClient.hSet("menu:items:v3", id, JSON.stringify(newItem));
+    res.status(201).json(newItem);
+  } catch (error) {
+    res.status(500).json({ error: "Failed to create menu item" });
+  }
+});
+
+// Update menu item (Staff)
+app.put("/api/menu/:id", authenticateToken, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { name, description, category, price, available } = req.body;
+    const item = { id, name, description, category, price: Number(price), available: Boolean(available) };
+
+    await redisClient.hSet("menu:items:v3", id, JSON.stringify(item));
+    res.json(item);
+  } catch (error) {
+    res.status(500).json({ error: "Failed to update menu item" });
+  }
+});
+
+// Delete menu item (Staff)
+app.delete("/api/menu/:id", authenticateToken, async (req, res) => {
+  try {
+    const { id } = req.params;
+    await redisClient.hDel("menu:items:v3", id);
+    res.json({ message: "Menu item deleted successfully" });
+  } catch (error) {
+    res.status(500).json({ error: "Failed to delete menu item" });
   }
 });
 
