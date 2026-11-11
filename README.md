@@ -16,7 +16,7 @@ A full-stack starter project for the Coffee Shop Management System assignment.
 - Customer menu with Maloti prices
 - Shopping cart and checkout
 - Order numbers formatted as `V0001`, `V0002`, ...
-- MySQL-backed menu and orders
+- Upstash Redis-backed menu and orders
 - Staff login and protected staff API routes
 - Add/update/delete menu items
 - View orders and update order status
@@ -25,27 +25,23 @@ A full-stack starter project for the Coffee Shop Management System assignment.
 
 ## Requirements
 - Node.js 20 or newer recommended
-- MySQL 8 or a compatible hosted MySQL database
+- Upstash Redis database account & connection URL (`REDIS_URL`)
 
-## 1. Create the MySQL database
+## 1. Set up Upstash Redis Database
 
-Run these commands in MySQL Workbench or a MySQL command line, using an account that can create databases and users:
+Create a free Redis database at [Upstash](https://upstash.com/):
 
-```sql
-CREATE DATABASE aroma_coffee CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
-CREATE USER 'aroma_user'@'localhost' IDENTIFIED BY 'replace-with-your-database-password';
-GRANT ALL PRIVILEGES ON aroma_coffee.* TO 'aroma_user'@'localhost';
-FLUSH PRIVILEGES;
-```
+1. Sign up/log in to Upstash and click **Create Database**.
+2. Name your database (e.g., `aroma-coffee-db`) and select a region close to your backend hosting.
+3. Once created, copy the **`REDIS_URL`** connection string (it looks like `rediss://default:your_password@your-host.upstash.io:6379`).
 
-If your MySQL server uses a different host or an existing account, adapt the user and host accordingly. The backend automatically creates its tables and inserts the initial menu the first time it connects to an empty database.
+Data Structures stored in Redis:
+- `menu:items` — JSON string or Redis Hash storing menu product details and availability.
+- `orders:counter` — Redis INCR counter generating sequential order numbers (`1`, `2`, ...).
+- `order:V0001`, `order:V0002` — JSON string or Redis Hash storing customer order details, status, and items.
+- `orders:all` — Redis Set or List indexing all created order IDs.
 
-Tables:
-- `menu_items` — menu product details and availability.
-- `orders` — customer, total, status, and an auto-incrementing order number.
-- `order_items` — snapshot of each ordered item, quantity, and price.
-
-The public order ID is created from the database's auto-increment number, for example `V0001`. The database generates unique numbers when concurrent orders are placed. If the database already contains orders, new IDs continue from its current sequence rather than resetting to V0001.
+The public order ID is generated using Redis's atomic `INCR orders:counter` command, formatted as `V0001`, `V0002`, etc. Atomic increment guarantees unique order numbers even under concurrent requests.
 
 ## 2. Start the backend
 
@@ -55,15 +51,19 @@ Open a terminal in `backend/`:
 npm install
 ```
 
-Copy `.env.example` to `.env` and enter your real MySQL connection details and strong staff/JWT secrets. Do not commit `.env`.
+Copy `.env.example` to `.env` and enter your Upstash Redis connection string and strong staff/JWT secrets. Do not commit `.env`.
+
+```bash
+REDIS_URL=rediss://default:your_password@your-host.upstash.io:6379
+```
+
+Run the backend:
 
 ```bash
 npm run dev
 ```
 
-The backend runs on `http://localhost:5000` by default. Test `http://localhost:5000/api/health`; the response should identify MySQL as the database. The backend creates the tables and seeds the menu if `menu_items` is empty.
-
-For a hosted MySQL service, set `MYSQL_HOST`, `MYSQL_PORT`, `MYSQL_USER`, `MYSQL_PASSWORD`, `MYSQL_DATABASE`, and enable `MYSQL_SSL=true` if the provider requires TLS.
+The backend runs on `http://localhost:5000` by default. Test `http://localhost:5000/api/health`; the response should identify Redis as the active database. The backend automatically seeds initial menu items into Redis if `menu:items` is empty.
 
 ## 3. Start the frontend
 
@@ -91,7 +91,7 @@ Open the local URL Vite prints, normally `http://localhost:5173`.
 
 Set `STAFF_USERNAME`, `STAFF_PASSWORD`, and `JWT_SECRET` in `backend/.env`. Use the same username and password in the Staff Login section of the website.
 
-This is an assignment-level login. For a production system, use a proper user database, hashed passwords, rate limiting, HTTPS, secure token handling, and audit logs.
+This is an assignment-level login. For a production system, use proper user password hashing, rate limiting, HTTPS, secure token handling, and audit logs.
 
 ## 5. API endpoints
 
@@ -116,15 +116,15 @@ This is an assignment-level login. For a production system, use a proper user da
 
 ## 6. Deployment
 
-### MySQL
-Use a managed MySQL provider or a MySQL server accessible to the deployed backend. Configure network access/firewall rules so the backend host can connect. Put all database credentials in the backend service's environment variables, not in React or GitHub. Enable TLS with `MYSQL_SSL=true` when required by the provider.
+### Upstash Redis
+Ensure your Upstash Redis database is active and accessible. Copy your `REDIS_URL` into your backend hosting provider's environment variables.
 
 ### Backend on Render
 - Create a Web Service connected to the GitHub repository.
 - Root directory: `backend`
 - Build command: `npm install`
 - Start command: `npm start`
-- Add environment variables from `backend/.env.example`, using the real hosted MySQL connection settings.
+- Add environment variables from `backend/.env.example`, using your `REDIS_URL`, secrets, and configuration settings.
 - Set `FRONTEND_ORIGIN` to the deployed frontend URL.
 - Test `https://YOUR-BACKEND-URL/api/health`.
 
@@ -138,12 +138,12 @@ Use a managed MySQL provider or a MySQL server accessible to the deployed backen
 
 ## 7. GitHub safety and final testing
 
-Never commit `.env`, database passwords, or JWT secrets. Keep `.env.example` values as placeholders only.
+Never commit `.env`, Redis passwords, or JWT secrets. Keep `.env.example` values as placeholders only.
 
 Before submission:
 - Test invalid inputs and failed requests.
 - Test placing an order and confirm its ID starts with `V`.
 - Test staff-only actions without logging in; they should fail.
-- Restart the backend and confirm menu and orders remain in MySQL.
-- Capture screenshots of the menu, cart, confirmation, staff dashboard, and MySQL records.
+- Restart the backend and confirm menu and orders persist in Upstash Redis.
+- Capture screenshots of the menu, cart, confirmation, staff dashboard, and Upstash Redis Data Browser.
 - Complete the group contribution report honestly.
