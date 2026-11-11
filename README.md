@@ -6,7 +6,8 @@ A full-stack starter project for the Coffee Shop Management System assignment.
 - React + Vite (frontend)
 - Express.js (REST API)
 - Fetch API
-- MySQL relational database (`mysql2` driver)
+- Upstash Redis (Serverless NoSQL database via `redis` client)
+- Redis-backed menu and orders
 - GitHub
 - Vercel/Netlify (frontend hosting)
 - Render (backend hosting)
